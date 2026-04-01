@@ -1,0 +1,159 @@
+---
+title: "Predicting Housing Prices Using Multiple Regression"
+author:
+  - name: "Author 1"
+  - name: "Author 2"
+  - name: "Author 3"
+  - name: "Author 4"
+format:
+  html:
+    theme: default
+    toc: false
+    embed-resources: true
+  pdf:
+    documentclass: article
+    geometry: margin=1in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 5,
+  fig.height = 3.5,
+  fig.align = "center"
+)
+
+library(tidyverse)
+library(GGally)
+library(broom)
+```
+
+## Abstract
+
+<!-- 1 paragraph: what you set out to learn + what you found. Write this LAST. -->
+
+
+## Introduction
+
+<!-- 2-3 sentences: What factors drive residential housing prices? -->
+<!-- Can we build a regression model to predict Price from property characteristics? -->
+<!-- Why does this matter? (home buyers, sellers, appraisers, etc.) -->
+
+
+## Data Set
+
+<!-- How was the data collected? Describe the dataset briefly. -->
+<!-- ~1,735 observations, 16 predictors + 1 response (Price) -->
+<!-- Note the Test column (0/1) — train/test split indicator -->
+
+```{r load-data}
+housing <- read.delim("housing-prices.txt", header = TRUE)
+
+# Split using the Test column, then drop it
+train <- housing %>% filter(Test == 0) %>% select(-Test)
+test  <- housing %>% filter(Test == 1) %>% select(-Test)
+```
+
+<!-- Variables:
+  Numeric:     Lot.Size, Age, Land.Value, Living.Area, Pct.College,
+               Bedrooms, Fireplaces, Bathrooms, Rooms
+  Binary:      Waterfront (0/1), New.Construct (0/1), Central.Air (0/1)
+  Categorical: Fuel.Type, Heat.Type, Sewer.Type
+  Response:    Price
+-->
+
+```{r summary-table}
+# train %>%
+#   select(Price, Living.Area, Land.Value, Age, Lot.Size, Bathrooms, Rooms) %>%
+#   pivot_longer(everything()) %>%
+#   group_by(name) %>%
+#   summarise(Mean = mean(value), SD = sd(value),
+#             Min = min(value), Max = max(value)) %>%
+#   knitr::kable(digits = 0, caption = "Summary statistics for key variables")
+```
+
+```{r eda-plots, fig.cap="Exploratory plots of key predictors against Price."}
+# ggplot(train, aes(x = Living.Area, y = Price)) +
+#   geom_point(alpha = 0.3) +
+#   geom_smooth(method = "lm", se = FALSE)
+
+# ggplot(train, aes(x = factor(Waterfront), y = Price)) +
+#   geom_boxplot()
+```
+
+
+## Analysis
+
+<!-- Variable selection: forward/backward/both — if they agree, show only once -->
+<!-- Convert categoricals to factors: Fuel.Type, Heat.Type, Sewer.Type -->
+<!-- Consider Waterfront, New.Construct, Central.Air as factors too -->
+<!-- Transformations: justify via residual plots, NOT by comparing R² across scales -->
+<!-- If you transform Price, re-run feature selection -->
+<!-- Independence = rows are independent, NOT that predictors are uncorrelated -->
+
+```{r factor-conversion}
+# train <- train %>%
+#   mutate(
+#     Waterfront    = factor(Waterfront),
+#     New.Construct = factor(New.Construct),
+#     Central.Air   = factor(Central.Air),
+#     Fuel.Type     = factor(Fuel.Type),
+#     Heat.Type     = factor(Heat.Type),
+#     Sewer.Type    = factor(Sewer.Type)
+#   )
+```
+
+```{r variable-selection}
+# full_model <- lm(Price ~ ., data = train)
+# step_model <- step(full_model, direction = "both", trace = 0)
+# summary(step_model)
+```
+
+```{r residual-diagnostics, fig.cap="Residual diagnostic plots for the final model."}
+# par(mfrow = c(2, 2))
+# plot(step_model)
+
+# Fix linearity FIRST before checking normality/homoscedasticity
+# Curved residuals vs fitted = linearity violated — must address
+```
+
+
+## Results
+
+<!-- Interpret key coefficients with units and REALISTIC ranges -->
+<!-- e.g. "A 100 sq ft increase in Living.Area is associated with a $X increase in Price" -->
+<!-- Use actual data ranges — don't interpret 1-unit if range is tiny -->
+<!-- Report R², adjusted R², residual standard error -->
+<!-- Statistical significance ≠ practical importance — discuss effect sizes -->
+<!-- Waterfront likely has a large effect — contextualise it -->
+
+```{r results-table}
+# knitr::kable(tidy(step_model, conf.int = TRUE), digits = 3,
+#              caption = "Final model coefficient estimates")
+```
+
+```{r test-performance}
+# Evaluate on held-out test set
+# preds <- predict(step_model, newdata = test)
+# rmse  <- sqrt(mean((test$Price - preds)^2))
+```
+
+
+## Discussion & Conclusion
+
+<!-- Limitations: observational data → no causal claims -->
+<!-- Potential confounders not captured (neighbourhood, school district, etc.) -->
+<!-- How to overcome? (more variables, spatial data, experimental design) -->
+<!-- Practical utility: rough price estimates, identifying key value drivers -->
+<!-- Transferable to other markets? Probably not directly — discuss why -->
+<!-- Brief conclusion linking back to the original question -->
+
+
+{{< pagebreak >}}
+
+## Appendix
+
+<!-- Optional 3rd page: references, large tables, extra figures -->
+<!-- Code submitted separately as .R or .qmd -->
