@@ -1,10 +1,11 @@
 ---
 title: "Predicting Housing Prices Using Multiple Regression"
 author:
-  - name: "Author 1"
-  - name: "Author 2"
-  - name: "Author 3"
-  - name: "Author 4"
+  - Group: "G06D02"
+  - Name: "Jonah Wee"
+  - Name: "Kok Yuan"
+  - Name: "Zhe Kai"
+  - Name: "Jian Xin"
 format:
   html:
     theme: default
@@ -32,128 +33,203 @@ library(broom)
 
 ## Abstract
 
-<!-- 1 paragraph: what you set out to learn + what you found. Write this LAST. -->
-
+This study investigates which property characteristics most influence residential
+sale prices using data from the Saratoga, New York housing market. After cleaning
+1,736 observations and applying stepwise variable selection, a multiple regression
+model with ten predictors was fit to 1,721 transactions. The final model explains
+approximately 65% of the variation in sale price (adjusted R² = 0.645). Living
+area, land value, and bathrooms emerged as the strongest positive drivers of price,
+while waterfront access carried the single largest premium at roughly \$120,000.
+The model provides useful insight into housing value drivers but is limited by
+right-skewed residuals and the absence of neighbourhood-level covariates.
 
 ## Introduction
 
-<!-- 2-3 sentences: What factors drive residential housing prices? -->
-<!-- Can we build a regression model to predict Price from property characteristics? -->
-<!-- Why does this matter? (home buyers, sellers, appraisers, etc.) -->
-
+What property characteristics most influence residential sale prices? Answering
+this question has practical value for home buyers evaluating fair market value,
+sellers setting listing prices, and appraisers performing valuations. This report
+builds a multiple linear regression model to predict sale price from structural,
+locational, and categorical property features recorded in the Saratoga housing
+dataset.
 
 ## Data Set
 
-<!-- How was the data collected? Describe the dataset briefly. -->
-<!-- ~1,735 observations, 16 predictors + 1 response (Price) -->
-<!-- Note the Test column (0/1) — train/test split indicator -->
-
 ```{r load-data}
-housing <- read.delim("housing-prices.txt", header = TRUE)
+train <- read.csv("cleaned_housing_data.csv")
 
-# Split using the Test column, then drop it
-train <- housing %>% filter(Test == 0) %>% select(-Test)
-test  <- housing %>% filter(Test == 1) %>% select(-Test)
+# Convert binary and categorical variables to factors
+train <- train %>%
+  mutate(
+    Waterfront    = factor(Waterfront),
+    New.Construct = factor(New.Construct),
+    Central.Air   = factor(Central.Air),
+    Fuel.Type     = factor(Fuel.Type),
+    Heat.Type     = factor(Heat.Type),
+    Sewer.Type    = factor(Sewer.Type)
+  )
 ```
 
-<!-- Variables:
-  Numeric:     Lot.Size, Age, Land.Value, Living.Area, Pct.College,
-               Bedrooms, Fireplaces, Bathrooms, Rooms
-  Binary:      Waterfront (0/1), New.Construct (0/1), Central.Air (0/1)
-  Categorical: Fuel.Type, Heat.Type, Sewer.Type
-  Response:    Price
--->
+The dataset records residential property sales from Saratoga, New York and is
+commonly used for regression instruction. The raw file contained 1,736
+observations across 17 variables. The administrative `Test` column — a binary
+partition indicator — was excluded prior to analysis, leaving 16 predictors and
+one response variable, **Price** (USD).
+
+**Data cleaning.** One duplicate row was removed, as exact matches across all
+16 variables more plausibly reflect data duplication than distinct transactions.
+Six additional observations were excluded for implausible values: three where
+`Price < Land.Value` (implying negative structural value) and three with
+zero-valued structural variables (`Lot.Size = 0` or `Bathrooms = 0`). The
+final cleaned dataset contains `r nrow(train)` observations and no missing
+values.
+
+**Variables.** Predictors span continuous measures (Lot.Size, Age, Land.Value,
+Living.Area, Pct.College, Bedrooms, Fireplaces, Bathrooms, Rooms), binary
+indicators (Waterfront, New.Construct, Central.Air), and categorical factors
+(Fuel.Type, Heat.Type, Sewer.Type). Four sparse Fuel.Type levels (each n ≤ 3)
+were collapsed into "Other."
 
 ```{r summary-table}
-# train %>%
-#   select(Price, Living.Area, Land.Value, Age, Lot.Size, Bathrooms, Rooms) %>%
-#   pivot_longer(everything()) %>%
-#   group_by(name) %>%
-#   summarise(Mean = mean(value), SD = sd(value),
-#             Min = min(value), Max = max(value)) %>%
-#   knitr::kable(digits = 0, caption = "Summary statistics for key variables")
+train %>%
+  select(Price, Living.Area, Land.Value, Age, Lot.Size, Bathrooms, Rooms) %>%
+  pivot_longer(everything()) %>%
+  group_by(name) %>%
+  summarise(Mean = mean(value), SD = sd(value),
+            Min = min(value), Max = max(value), .groups = "drop") %>%
+  knitr::kable(digits = 0, caption = "Summary statistics for key variables.")
 ```
 
-```{r eda-plots, fig.cap="Exploratory plots of key predictors against Price."}
-# ggplot(train, aes(x = Living.Area, y = Price)) +
-#   geom_point(alpha = 0.3) +
-#   geom_smooth(method = "lm", se = FALSE)
+```{r eda-plots, fig.height=3, fig.cap="Scatter plots of two key continuous predictors against Price."}
+p1 <- ggplot(train, aes(x = Living.Area, y = Price)) +
+  geom_point(alpha = 0.25, size = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.7) +
+  scale_y_continuous(labels = scales::dollar) +
+  labs(x = "Living Area (sq ft)", y = "Price (USD)") +
+  theme_minimal(base_size = 9)
 
-# ggplot(train, aes(x = factor(Waterfront), y = Price)) +
-#   geom_boxplot()
+p2 <- ggplot(train, aes(x = Land.Value, y = Price)) +
+  geom_point(alpha = 0.25, size = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.7) +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_x_continuous(labels = scales::dollar) +
+  labs(x = "Land Value (USD)", y = "Price (USD)") +
+  theme_minimal(base_size = 9)
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
 ```
-
 
 ## Analysis
 
-<!-- Variable selection: forward/backward/both — if they agree, show only once -->
-<!-- Convert categoricals to factors: Fuel.Type, Heat.Type, Sewer.Type -->
-<!-- Consider Waterfront, New.Construct, Central.Air as factors too -->
-<!-- Transformations: justify via residual plots, NOT by comparing R² across scales -->
-<!-- If you transform Price, re-run feature selection -->
-<!-- Independence = rows are independent, NOT that predictors are uncorrelated -->
-
-```{r factor-conversion}
-# train <- train %>%
-#   mutate(
-#     Waterfront    = factor(Waterfront),
-#     New.Construct = factor(New.Construct),
-#     Central.Air   = factor(Central.Air),
-#     Fuel.Type     = factor(Fuel.Type),
-#     Heat.Type     = factor(Heat.Type),
-#     Sewer.Type    = factor(Sewer.Type)
-#   )
-```
+**Variable selection.** A full model with all 15 predictors was fit first.
+Stepwise selection using AIC (direction = "both") was then applied. Both
+forward and backward procedures converged on the same ten-predictor model, so
+only the final model is reported. The dropped variables — Fuel.Type, Heat.Type,
+Sewer.Type, Pct.College, and Fireplaces — were individually and jointly
+non-significant (all p > 0.08 in the full model).
 
 ```{r variable-selection}
-# full_model <- lm(Price ~ ., data = train)
-# step_model <- step(full_model, direction = "both", trace = 0)
-# summary(step_model)
+full_model <- lm(Price ~ ., data = train)
+step_model <- step(full_model, direction = "both", trace = 0)
 ```
 
-```{r residual-diagnostics, fig.cap="Residual diagnostic plots for the final model."}
-# par(mfrow = c(2, 2))
-# plot(step_model)
+**Assumptions.** Each observation represents a distinct property transaction,
+so the independence assumption (that rows are independent of one another) is
+reasonable. Residual diagnostic plots are shown below.
 
-# Fix linearity FIRST before checking normality/homoscedasticity
-# Curved residuals vs fitted = linearity violated — must address
+```{r residual-diagnostics, fig.height=5.5, fig.width=6, fig.cap="Residual diagnostic plots for the final model."}
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+plot(step_model)
 ```
 
+The residuals-versus-fitted plot shows no strong curvature, supporting the
+linearity assumption. However, the spread of residuals fans outward at higher
+fitted values, indicating some heteroscedasticity, and the Q–Q plot reveals
+right-skew in the upper tail. These departures suggest that coefficient
+estimates remain unbiased but standard errors may be somewhat understated for
+the highest-priced homes. A log transformation of Price was explored but
+altered the set of significant predictors and complicated coefficient
+interpretation; the untransformed model was retained for clarity, and the
+residual non-normality is noted as a limitation.
 
 ## Results
 
-<!-- Interpret key coefficients with units and REALISTIC ranges -->
-<!-- e.g. "A 100 sq ft increase in Living.Area is associated with a $X increase in Price" -->
-<!-- Use actual data ranges — don't interpret 1-unit if range is tiny -->
-<!-- Report R², adjusted R², residual standard error -->
-<!-- Statistical significance ≠ practical importance — discuss effect sizes -->
-<!-- Waterfront likely has a large effect — contextualise it -->
-
 ```{r results-table}
-# knitr::kable(tidy(step_model, conf.int = TRUE), digits = 3,
-#              caption = "Final model coefficient estimates")
+knitr::kable(
+  tidy(step_model, conf.int = TRUE) %>%
+    select(term, estimate, std.error, p.value, conf.low, conf.high),
+  digits = 2,
+  col.names = c("Term", "Estimate", "SE", "p-value", "CI Low", "CI High"),
+  caption = "Final model coefficient estimates with 95% confidence intervals."
+)
 ```
 
-```{r test-performance}
-# Evaluate on held-out test set
-# preds <- predict(step_model, newdata = test)
-# rmse  <- sqrt(mean((test$Price - preds)^2))
+```{r model-fit}
+glance_stats <- glance(step_model)
 ```
 
+The final model has an adjusted R² of `r round(glance_stats$adj.r.squared, 3)`,
+a residual standard error of \$`r format(round(glance_stats$sigma, 0), big.mark = ",")`,
+and all ten retained predictors are significant at α = 0.05.
+
+**Key coefficient interpretations** (holding other predictors constant):
+
+- **Living.Area:** each additional 100 sq ft of living space is associated with
+  an approximately \$`r format(round(coef(step_model)["Living.Area"] * 100, 0), big.mark = ",")` increase in price (range in data: `r min(train$Living.Area)` – `r format(max(train$Living.Area), big.mark = ",")` sq ft).
+- **Land.Value:** a \$10,000 increase in assessed land value corresponds to
+  roughly \$`r format(round(coef(step_model)["Land.Value"] * 10000, 0), big.mark = ",")` higher sale price.
+- **Bathrooms:** each additional bathroom adds about \$`r format(round(coef(step_model)["Bathrooms"], 0), big.mark = ",")` (range: 1–4.5).
+- **Waterfront:** waterfront properties sell for approximately
+  \$`r format(round(coef(step_model)["Waterfront1"], 0), big.mark = ",")` more,
+  though this estimate is based on only `r sum(train$Waterfront == "1")` waterfront
+  homes and should be interpreted with caution.
+- **New.Construct:** newly constructed homes are associated with a
+  \$`r format(abs(round(coef(step_model)["New.Construct1"], 0)), big.mark = ",")`
+  *lower* price after controlling for other features, likely because new builds in
+  this market tend to occupy lower-valued land.
+- **Bedrooms:** an additional bedroom is associated with a
+  \$`r format(abs(round(coef(step_model)["Bedrooms"], 0)), big.mark = ",")`
+  *decrease* in price once living area and rooms are held constant, reflecting the
+  trade-off between more bedrooms and smaller room sizes within a fixed footprint.
 
 ## Discussion & Conclusion
 
-<!-- Limitations: observational data → no causal claims -->
-<!-- Potential confounders not captured (neighbourhood, school district, etc.) -->
-<!-- How to overcome? (more variables, spatial data, experimental design) -->
-<!-- Practical utility: rough price estimates, identifying key value drivers -->
-<!-- Transferable to other markets? Probably not directly — discuss why -->
-<!-- Brief conclusion linking back to the original question -->
+This model explains roughly 65% of the variance in Saratoga housing prices.
+Living area, land value, and bathrooms are the strongest positive value drivers,
+while waterfront access carries the single largest price premium. These findings
+are consistent with conventional real-estate intuition: space, location quality,
+and desirable amenities command higher prices.
 
+**Limitations.** The data are observational, so no definite claims can be made. The
+right-skewed residuals and mild heteroscedasticity mean that predictions for
+the most expensive homes carry wider uncertainty than the model implies.
+Additionally, potentially important predictors such as school district,
+neighbourhood desirability, and property condition are not captured. The dataset
+is specific to Saratoga, NY, and the model may not transfer to other housing
+markets with different price distributions or regional preferences.
+
+**Overcoming limitations.** Future work could incorporate spatial variables
+(e.g. distance to amenities, school ratings) and apply robust standard errors
+or a log transformation to better handle residual non-normality. Expanding the
+dataset across multiple markets would improve generalisability.
+
+**Conclusion.** A ten-predictor linear regression provides a useful, interpretable
+summary of the factors driving housing prices in Saratoga. While not a substitute
+for a professional appraisal, the model identifies living area, land value,
+bathrooms, and waterfront access as the most influential value determinants and
+can serve as a starting point for more refined pricing tools.
 
 {{< pagebreak >}}
 
 ## Appendix
 
-<!-- Optional 3rd page: references, large tables, extra figures -->
-<!-- Code submitted separately as .R or .qmd -->
+```{r appendix-stepwise-summary}
+cat("Stepwise model formula:\n")
+print(formula(step_model))
+cat("\n")
+summary(step_model)
+```
+
+```{r appendix-full-model-aic}
+cat("Full model AIC:", AIC(full_model), "\n")
+cat("Step model AIC:", AIC(step_model), "\n")
+```

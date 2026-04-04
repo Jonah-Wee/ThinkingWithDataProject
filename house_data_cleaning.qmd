@@ -1,0 +1,236 @@
+---
+title: "Housing Data Cleaning and Integrity Checks"
+author: "G06D02"
+format: 
+  html:
+    toc: true
+    toc-depth: 2
+    toc-title: "Contents"
+    code-fold: true
+    code-summary: "Show code"
+    embed-resources: true
+    theme: cosmo
+    df-print: kable
+execute:
+  warning: false
+  message: false
+  echo: true
+---
+
+## Setup and Data Loading
+
+First, we load the required libraries and the raw dataset, and briefly inspect its structure.
+
+```{r setup}
+library(dplyr)
+library(forcats)
+library(knitr)
+
+houses <- read.table("housing-prices.txt", header = TRUE, sep = "\t")
+
+glimpse(houses)
+```
+
+The raw dataset contains **`r nrow(houses)` observations** and **`r ncol(houses)` variables**.
+
+## 1. Drop the Test column
+
+The `Test` variable was excluded from the analysis as it is an administrative indicator used for train/test partitioning rather than a meaningful property characteristic. Including it would not contribute explanatory value to housing prices and may introduce unnecessary noise into the model.
+
+```{r drop-test}
+houses$Test <- NULL
+```
+
+## 2. Remove duplicate rows
+
+While it is possible that different housing units share identical observable characteristics, the absence of property identifiers or transaction-level information prevents us from distinguishing between genuinely distinct observations and duplicated records. Given that exact matches occur across all 16 variables, these observations are most plausibly the result of data duplication rather than separate transactions. To preserve the independence-of-observations assumption in regression analysis, exact duplicate rows were removed.
+
+```{r remove-duplicates}
+dupes <- houses[duplicated(houses) | duplicated(houses, fromLast = TRUE), ]
+dupes_sorted <- dupes[do.call(order, dupes), ]
+
+n_dupes <- sum(duplicated(houses))
+
+kable(dupes_sorted, caption = "Identified duplicate rows")
+
+houses <- houses[!duplicated(houses), ]
+```
+
+**`r n_dupes` duplicate rows** were identified and removed. The dataset now contains **`r nrow(houses)` observations**.
+
+## 3. Screen for implausible or logically inconsistent observations
+
+A series of data integrity checks were conducted to identify observations that may violate logical or structural relationships within the dataset. These checks included conditions such as negative house ages, inconsistent room counts, zero-valued key structural variables, and cases where `Price < Land.Value`.
+
+```{r initial-screening}
+checks <- tibble::tibble(
+  Check              = c("Age < 0", "Rooms < Bedrooms", "Living.Area == 0"),
+  `Observations flagged` = c(
+    nrow(houses %>% filter(Age < 0)),
+    nrow(houses %>% filter(Rooms < Bedrooms)),
+    nrow(houses %>% filter(Living.Area == 0))
+  )
+)
+
+kable(checks, caption = "Additional logical integrity checks — all returned 0 observations")
+```
+
+These checks returned no flagged observations, suggesting the dataset is largely internally consistent along these dimensions. Two further conditions did yield flagged observations and are addressed below.
+
+### (1) Price < Land.Value
+
+Three observations were identified where the sale price was lower than the assessed land value alone. Under standard market conditions, a property's sale price is expected to exceed its land value, as the structure itself contributes additional worth. A sale price below land value implies the structure has negative value — an economically implausible outcome for a functioning residential property. While distressed or non-arm's-length sales can theoretically produce such outcomes, the absence of any supporting contextual information means these observations cannot be distinguished from data errors. All three were removed (representing `r round(3/nrow(houses)*100, 2)`% of the dataset).
+
+```{r check-weird-prices}
+weird_prices <- houses %>% filter(Price < Land.Value)
+
+kable(weird_prices, caption = "Observations where Price < Land.Value")
+```
+
+### (2) Zero values in key structural variables
+
+Two observations with `Lot.Size = 0` and one with `Bathrooms = 0` were identified and removed. A residential property cannot physically have zero lot size or zero bathrooms — these values are inconsistent with a habitable dwelling and are most plausibly the result of missing data encoded as zeros or data entry errors rather than genuine property characteristics. Together these account for `r round(3/nrow(houses)*100, 2)`% of the dataset; their removal is unlikely to meaningfully affect model estimates.
+
+```{r check-zero-metrics}
+zero_metrics <- houses %>% 
+  filter(Bathrooms == 0 | Lot.Size == 0)
+
+kable(zero_metrics, caption = "Observations with zero-valued structural variables")
+```
+
+### Removal decision
+
+```{r check-overlap}
+# Verify no overlap between the two removal conditions
+overlap <- houses %>%
+  filter(Price < Land.Value) %>%
+  filter(Bathrooms == 0 | Lot.Size == 0)
+```
+
+No overlap was found between the two conditions (`r nrow(overlap)` shared observations), confirming that the total number of removed rows is **`r nrow(weird_prices) + nrow(zero_metrics)`**, representing `r round((nrow(weird_prices) + nrow(zero_metrics))/nrow(houses)*100, 2)`% of the dataset.
+
+- `Price < Land.Value` cases are treated as potentially anomalous observations that may not reflect typical market transactions.
+- Zero-valued structural variables are interpreted as likely miscoded or missing values, rather than meaningful property characteristics.
+
+While the removal of observations may introduce some risk of selection bias, the extremely small number of affected rows suggests that any impact on model estimates is likely negligible.
+
+```{r remove-implausible}
+houses <- houses %>%
+  filter(!(Price < Land.Value | Bathrooms == 0 | Lot.Size == 0))
+```
+
+The dataset now contains **`r nrow(houses)` observations** after removing implausible entries.
+
+## 4. Convert categorical variables to factors
+
+All qualitative variables were converted to factors to ensure they are correctly treated as categorical variables in subsequent analysis. For multi-level categorical variables (`Fuel.Type`, `Heat.Type`, `Sewer.Type`), this prevents them from being interpreted as arbitrary character strings. For binary indicators (`Waterfront`, `New.Construct`, `Central.Air`), factor conversion improves clarity and consistency in how categories are represented and interpreted. Note that for strictly binary 0/1 variables, `lm()` produces identical coefficient estimates whether numeric or factor; the conversion here is for interpretability and consistency.
+
+```{r convert-factors}
+houses$Fuel.Type     <- factor(houses$Fuel.Type)
+houses$Heat.Type     <- factor(houses$Heat.Type)
+houses$Sewer.Type    <- factor(houses$Sewer.Type)
+houses$Waterfront    <- factor(houses$Waterfront)
+houses$New.Construct <- factor(houses$New.Construct)
+houses$Central.Air   <- factor(houses$Central.Air)
+```
+
+```{r show-factor-levels}
+factor_levels <- tibble::tibble(
+  Variable   = c("Fuel.Type", "Heat.Type", "Sewer.Type"),
+  Levels     = c(
+    paste(levels(houses$Fuel.Type),  collapse = ", "),
+    paste(levels(houses$Heat.Type),  collapse = ", "),
+    paste(levels(houses$Sewer.Type), collapse = ", ")
+  )
+)
+
+kable(factor_levels, caption = "Factor levels for categorical variables")
+```
+
+## 5. Collapse rare Fuel.Type levels {#collapse-fuel}
+
+### 5a. Fuel.Type
+
+A frequency check revealed four `Fuel.Type` levels with very small counts: `None` (n = 3), `Unknown/Other` (n = 1), `Solar` (n = 1), and `Wood` (n = 1). Levels with near-zero observations produce highly unstable coefficient estimates in regression, as the corresponding dummy variable has almost no variance. These four sparse categories are aggregated into a single `Other` level. `Gas`, `Electric`, and `Oil` are retained as distinct levels.
+
+```{r collapse-fuel-type}
+fuel_before <- as.data.frame(table(houses$Fuel.Type))
+colnames(fuel_before) <- c("Level", "Count (before)")
+
+houses$Fuel.Type <- fct_other(
+  houses$Fuel.Type,
+  keep = c("Gas", "Oil", "Electric"),
+  other_level = "Other"
+)
+
+fuel_after <- as.data.frame(table(houses$Fuel.Type))
+colnames(fuel_after) <- c("Level", "Count (after)")
+
+kable(merge(fuel_before, fuel_after, by = "Level", all = TRUE),
+      caption = "Fuel.Type level counts before and after collapsing")
+```
+
+### 5b. Heat.Type and Sewer.Type — no collapsing required
+
+Unlike `Fuel.Type`, which contained four sparse levels warranting aggregation, `Heat.Type` and `Sewer.Type` do not present the same issue.
+
+- `Heat.Type` contains one rare level: `None` (n = 6). However, unlike the `Fuel.Type` rare levels (where multiple categories each had n ≤ 3), `Heat.Type` has only a single non-dominant level. Collapsing it into `Other` would create a category with no meaningful interpretation — there are no other rare levels to aggregate it with. The `None` level represents a genuinely distinct property characteristic (absence of a heating system) and is retained. Its coefficient should be interpreted with caution given the limited observations.
+- `Sewer.Type` contains three levels (`Public`, `Private`, `None/Unknown`), all with sufficient counts to produce stable coefficient estimates. No collapsing is required.
+
+```{r check-other-factors}
+heat_counts  <- as.data.frame(table(houses$Heat.Type))
+sewer_counts <- as.data.frame(table(houses$Sewer.Type))
+colnames(heat_counts)  <- c("Heat.Type",  "Count")
+colnames(sewer_counts) <- c("Sewer.Type", "Count")
+
+kable(heat_counts,  caption = "Heat.Type level counts")
+kable(sewer_counts, caption = "Sewer.Type level counts")
+```
+
+## 6. Final integrity checks
+
+### Large lot sizes
+
+Observations with lot sizes exceeding 5 acres were examined to assess whether extreme values were present in the dataset. While such properties represent relatively large parcels, they are consistent with the characteristics of the Saratoga housing market, which is less densely populated and allows for larger land holdings compared to urban areas. As these values fall within plausible ranges for the region, they are retained.
+
+```{r check-large-lots}
+large_lots <- houses %>% filter(Lot.Size > 5)
+
+kable(large_lots, caption = paste0("Properties with Lot.Size > 5 acres (n = ", nrow(large_lots), ")"))
+```
+
+### Age vs New.Construct consistency
+
+A cross-tabulation of `Age == 0` and `New.Construct` was conducted to verify internal consistency. This is not considered a data error: `Age` reflects the physical age of the structure, whereas `New.Construct` captures its market classification at the point of sale — two conceptually distinct attributes that can legitimately diverge. For example, a builder may market a two-year-old spec home as new construction. All observations are retained.
+
+```{r check-age-construct}
+age_construct <- table(houses$Age == 0, houses$New.Construct)
+
+age_df <- as.data.frame.matrix(age_construct)
+
+rownames(age_df) <- c("Age > 0", "Age = 0")
+colnames(age_df) <- c("Not New", "New")
+
+kable(
+  age_df,
+  caption = "Cross-tabulation of Age == 0 and New.Construct"
+)
+```
+
+## 7. Final validation
+
+```{r final-validation}
+kable(
+  tibble::tibble(
+    Metric  = c("Observations", "Variables", "Missing values"),
+    Value   = c(nrow(houses), ncol(houses), sum(is.na(houses)))
+  ),
+  caption = "Final dataset summary"
+)
+
+glimpse(houses)
+
+write.csv(houses, "cleaned_housing_data.csv", row.names = FALSE)
+```
+
+The cleaned dataset contains **`r nrow(houses)` observations** and **`r ncol(houses)` variables**, with **`r sum(is.na(houses))` missing values**. It has been saved to `cleaned_housing_data.csv` and is ready for exploratory data analysis and modelling.
