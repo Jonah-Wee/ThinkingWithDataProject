@@ -2214,8 +2214,9 @@ vertical-align: -.125em;
   <li><a href="#screen-for-implausible-or-logically-inconsistent-observations" id="toc-screen-for-implausible-or-logically-inconsistent-observations" class="nav-link" data-scroll-target="#screen-for-implausible-or-logically-inconsistent-observations">3. Screen for implausible or logically inconsistent observations</a></li>
   <li><a href="#convert-categorical-variables-to-factors" id="toc-convert-categorical-variables-to-factors" class="nav-link" data-scroll-target="#convert-categorical-variables-to-factors">4. Convert categorical variables to factors</a></li>
   <li><a href="#collapse-fuel" id="toc-collapse-fuel" class="nav-link" data-scroll-target="#collapse-fuel">5. Collapse rare Fuel.Type levels</a></li>
-  <li><a href="#final-integrity-checks" id="toc-final-integrity-checks" class="nav-link" data-scroll-target="#final-integrity-checks">6. Final integrity checks</a></li>
-  <li><a href="#final-validation" id="toc-final-validation" class="nav-link" data-scroll-target="#final-validation">7. Final validation</a></li>
+  <li><a href="#remove-implausible-price-outliers" id="toc-remove-implausible-price-outliers" class="nav-link" data-scroll-target="#remove-implausible-price-outliers">6. Remove implausible price outliers</a></li>
+  <li><a href="#final-integrity-checks" id="toc-final-integrity-checks" class="nav-link" data-scroll-target="#final-integrity-checks">7. Final integrity checks</a></li>
+  <li><a href="#final-validation" id="toc-final-validation" class="nav-link" data-scroll-target="#final-validation">8. Final validation</a></li>
   </ul>
 </nav>
 </div>
@@ -3133,17 +3134,147 @@ $ Test          &lt;int&gt; 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0
 </div>
 </section>
 </section>
+<section id="remove-implausible-price-outliers" class="level2">
+<h2 class="anchored" data-anchor-id="remove-implausible-price-outliers">6. Remove implausible price outliers</h2>
+<p>Three observations were identified as likely non-standard transactions based on their sale price relative to their structural characteristics. These were flagged during assumption checking of the regression model and are removed here for completeness of the cleaning record.</p>
+<ul>
+<li><strong>Observation 1184</strong>: Sale price of $655,000 for a 780 sq ft non-waterfront home with no distinguishing features — over three times the dataset median with no plausible structural or locational justification.</li>
+<li><strong>Observation 108</strong>: Sale price of $25,000 for a 920 sq ft home with an assessed land value of only $900 — inconsistent with an arm’s-length residential market transaction.</li>
+<li><strong>Observation 458</strong>: Sale price of $20,000 for a 936 sq ft home — similarly implausible for a habitable residential property.</li>
+</ul>
+<p>These prices cannot be reconciled with standard market conditions and are most plausibly the result of data errors or atypical sales such as foreclosures or intra-family transfers. As no supporting contextual information is available to distinguish these cases, all three were removed.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>outlier_ids <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">1184</span>, <span class="dv">108</span>, <span class="dv">458</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  houses[outlier_ids, ],</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">caption =</span> <span class="st">&quot;Three implausible price outliers identified for removal&quot;</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>Three implausible price outliers identified for removal</caption>
+<colgroup>
+<col style="width: 3%">
+<col style="width: 4%">
+<col style="width: 5%">
+<col style="width: 6%">
+<col style="width: 2%">
+<col style="width: 6%">
+<col style="width: 8%">
+<col style="width: 7%">
+<col style="width: 6%">
+<col style="width: 6%">
+<col style="width: 6%">
+<col style="width: 7%">
+<col style="width: 7%">
+<col style="width: 5%">
+<col style="width: 6%">
+<col style="width: 6%">
+<col style="width: 3%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: right;">Price</th>
+<th style="text-align: right;">Lot.Size</th>
+<th style="text-align: left;">Waterfront</th>
+<th style="text-align: right;">Age</th>
+<th style="text-align: right;">Land.Value</th>
+<th style="text-align: left;">New.Construct</th>
+<th style="text-align: left;">Central.Air</th>
+<th style="text-align: left;">Fuel.Type</th>
+<th style="text-align: left;">Heat.Type</th>
+<th style="text-align: left;">Sewer.Type</th>
+<th style="text-align: right;">Living.Area</th>
+<th style="text-align: right;">Pct.College</th>
+<th style="text-align: right;">Bedrooms</th>
+<th style="text-align: right;">Fireplaces</th>
+<th style="text-align: right;">Bathrooms</th>
+<th style="text-align: right;">Rooms</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">1184</td>
+<td style="text-align: right;">655000</td>
+<td style="text-align: right;">0.19</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: right;">55</td>
+<td style="text-align: right;">103000</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">Gas</td>
+<td style="text-align: left;">Hot Air</td>
+<td style="text-align: left;">Public</td>
+<td style="text-align: right;">780</td>
+<td style="text-align: right;">62</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1.5</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">108</td>
+<td style="text-align: right;">25000</td>
+<td style="text-align: right;">0.21</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: right;">75</td>
+<td style="text-align: right;">900</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">Oil</td>
+<td style="text-align: left;">Hot Air</td>
+<td style="text-align: left;">Private</td>
+<td style="text-align: right;">920</td>
+<td style="text-align: right;">44</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1.0</td>
+<td style="text-align: right;">6</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">458</td>
+<td style="text-align: right;">20000</td>
+<td style="text-align: right;">0.52</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: right;">59</td>
+<td style="text-align: right;">8000</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">0</td>
+<td style="text-align: left;">Oil</td>
+<td style="text-align: left;">Hot Air</td>
+<td style="text-align: left;">Private</td>
+<td style="text-align: right;">936</td>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">1.0</td>
+<td style="text-align: right;">4</td>
+</tr>
+</tbody>
+</table>
+</div>
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>houses <span class="ot">&lt;-</span> houses[<span class="sc">-</span>outlier_ids, ]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+<p><strong>3 observations</strong> were removed. The dataset now contains <strong>1718 observations</strong>.</p>
+</section>
 <section id="final-integrity-checks" class="level2">
-<h2 class="anchored" data-anchor-id="final-integrity-checks">6. Final integrity checks</h2>
+<h2 class="anchored" data-anchor-id="final-integrity-checks">7. Final integrity checks</h2>
 <section id="large-lot-sizes" class="level3">
 <h3 class="anchored" data-anchor-id="large-lot-sizes">Large lot sizes</h3>
 <p>Observations with lot sizes exceeding 5 acres were examined to assess whether extreme values were present in the dataset. While such properties represent relatively large parcels, they are consistent with the characteristics of the Saratoga housing market, which is less densely populated and allows for larger land holdings compared to urban areas. As these values fall within plausible ranges for the region, they are retained.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>large_lots <span class="ot">&lt;-</span> houses <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Lot.Size <span class="sc">&gt;</span> <span class="dv">5</span>)</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(large_lots, <span class="at">caption =</span> <span class="fu">paste0</span>(<span class="st">&quot;Properties with Lot.Size &gt; 5 acres (n = &quot;</span>, <span class="fu">nrow</span>(large_lots), <span class="st">&quot;)&quot;</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>large_lots <span class="ot">&lt;-</span> houses <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Lot.Size <span class="sc">&gt;</span> <span class="dv">5</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(large_lots, <span class="at">caption =</span> <span class="fu">paste0</span>(<span class="st">&quot;Properties with Lot.Size &gt; 5 acres (n = &quot;</span>, <span class="fu">nrow</span>(large_lots), <span class="st">&quot;)&quot;</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3360,17 +3491,17 @@ $ Test          &lt;int&gt; 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0
 <div class="cell">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>age_construct <span class="ot">&lt;-</span> <span class="fu">table</span>(houses<span class="sc">$</span>Age <span class="sc">==</span> <span class="dv">0</span>, houses<span class="sc">$</span>New.Construct)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>age_df <span class="ot">&lt;-</span> <span class="fu">as.data.frame.matrix</span>(age_construct)</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(age_df) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;Age &gt; 0&quot;</span>, <span class="st">&quot;Age = 0&quot;</span>)</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(age_df) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;Not New&quot;</span>, <span class="st">&quot;New&quot;</span>)</span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(</span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>  age_df,</span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">caption =</span> <span class="st">&quot;Cross-tabulation of Age == 0 and New.Construct&quot;</span></span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>age_construct <span class="ot">&lt;-</span> <span class="fu">table</span>(houses<span class="sc">$</span>Age <span class="sc">==</span> <span class="dv">0</span>, houses<span class="sc">$</span>New.Construct)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>age_df <span class="ot">&lt;-</span> <span class="fu">as.data.frame.matrix</span>(age_construct)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(age_df) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;Age &gt; 0&quot;</span>, <span class="st">&quot;Age = 0&quot;</span>)</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="fu">colnames</span>(age_df) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;Not New&quot;</span>, <span class="st">&quot;New&quot;</span>)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>  age_df,</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">caption =</span> <span class="st">&quot;Cross-tabulation of Age == 0 and New.Construct&quot;</span></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3385,7 +3516,7 @@ $ Test          &lt;int&gt; 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0
 <tbody>
 <tr class="odd">
 <td style="text-align: left;">Age &gt; 0</td>
-<td style="text-align: right;">1592</td>
+<td style="text-align: right;">1589</td>
 <td style="text-align: right;">46</td>
 </tr>
 <tr class="even">
@@ -3400,17 +3531,17 @@ $ Test          &lt;int&gt; 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0
 </section>
 </section>
 <section id="final-validation" class="level2">
-<h2 class="anchored" data-anchor-id="final-validation">7. Final validation</h2>
+<h2 class="anchored" data-anchor-id="final-validation">8. Final validation</h2>
 <div class="cell">
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">Metric  =</span> <span class="fu">c</span>(<span class="st">&quot;Observations&quot;</span>, <span class="st">&quot;Variables&quot;</span>, <span class="st">&quot;Missing values&quot;</span>),</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Value   =</span> <span class="fu">c</span>(<span class="fu">nrow</span>(houses), <span class="fu">ncol</span>(houses), <span class="fu">sum</span>(<span class="fu">is.na</span>(houses)))</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  ),</span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">caption =</span> <span class="st">&quot;Final dataset summary&quot;</span></span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">Metric  =</span> <span class="fu">c</span>(<span class="st">&quot;Observations&quot;</span>, <span class="st">&quot;Variables&quot;</span>, <span class="st">&quot;Missing values&quot;</span>),</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">Value   =</span> <span class="fu">c</span>(<span class="fu">nrow</span>(houses), <span class="fu">ncol</span>(houses), <span class="fu">sum</span>(<span class="fu">is.na</span>(houses)))</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  ),</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">caption =</span> <span class="st">&quot;Final dataset summary&quot;</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3424,7 +3555,7 @@ $ Test          &lt;int&gt; 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0
 <tbody>
 <tr class="odd">
 <td style="text-align: left;">Observations</td>
-<td style="text-align: right;">1721</td>
+<td style="text-align: right;">1718</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">Variables</td>
@@ -3439,10 +3570,10 @@ $ Test          &lt;int&gt; 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0
 </div>
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(houses)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(houses)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>Rows: 1,721
+<pre><code>Rows: 1,718
 Columns: 16
 $ Price         &lt;int&gt; 132500, 181115, 109000, 155000, 86060, 120000, 153000, 1…
 $ Lot.Size      &lt;dbl&gt; 0.09, 0.92, 0.19, 0.41, 0.11, 0.68, 0.40, 1.21, 0.83, 1.…
@@ -3463,10 +3594,10 @@ $ Rooms         &lt;int&gt; 5, 6, 8, 5, 3, 8, 8, 9, 8, 6, 12, 6, 4, 5, 8, 7, 12,
 </div>
 <details class="code-fold">
 <summary>Show code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(houses, <span class="st">&quot;cleaned_housing_data.csv&quot;</span>, <span class="at">row.names =</span> <span class="cn">FALSE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(houses, <span class="st">&quot;cleaned_housing_data.csv&quot;</span>, <span class="at">row.names =</span> <span class="cn">FALSE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
-<p>The cleaned dataset contains <strong>1721 observations</strong> and <strong>16 variables</strong>, with <strong>0 missing values</strong>. It has been saved to <code>cleaned_housing_data.csv</code> and is ready for exploratory data analysis and modelling.</p>
+<p>The cleaned dataset contains <strong>1718 observations</strong> and <strong>16 variables</strong>, with <strong>0 missing values</strong>. It has been saved to <code>cleaned_housing_data.csv</code> and is ready for exploratory data analysis and modelling. Note that the final observation count of 1718 reflects all cleaning steps including the removal of three implausible price outliers identified in Section 6.</p>
 </section>
 
 </main>

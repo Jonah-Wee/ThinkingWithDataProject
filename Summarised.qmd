@@ -1,0 +1,229 @@
+---
+title: "Predicting Housing Prices Using Multiple Regression"
+subtitle: "Group G06D02"
+author: "Jonah Wee, Kok Yuan, Zhe Kai, Jian Xin"
+format:
+  html:
+    theme: default
+    toc: false
+    embed-resources: true
+  pdf:
+    documentclass: article
+    geometry: margin=1in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 5,
+  fig.height = 3.5,
+  fig.align = "center"
+)
+
+library(tidyverse)
+library(GGally)
+library(broom)
+library(gridExtra)
+library(scales)
+
+train <- read.csv("cleaned_housing_data.csv")
+
+train <- train %>%
+  mutate(
+    Waterfront    = factor(Waterfront),
+    New.Construct = factor(New.Construct),
+    Central.Air   = factor(Central.Air),
+    Fuel.Type     = factor(Fuel.Type),
+    Heat.Type     = factor(Heat.Type),
+    Sewer.Type    = factor(Sewer.Type)
+  )
+
+train$log_Price <- log(train$Price)
+
+set.seed(123)
+n         <- nrow(train)
+train_idx <- sample(seq_len(n), size = floor(0.8 * n))
+train_set <- train[train_idx, ]
+test_set  <- train[-train_idx, ]
+
+full_model <- lm(log_Price ~ . - Price, data = train_set)
+step_model <- step(full_model, direction = "both", trace = 0)
+
+log_preds    <- predict(step_model, newdata = test_set)
+test_preds   <- exp(log_preds)
+test_rmse    <- sqrt(mean((test_set$Price - test_preds)^2))
+test_mae     <- mean(abs(test_set$Price - test_preds))
+median_price <- median(train$Price)
+glance_stats <- glance(step_model)
+
+n_vars_full  <- length(attr(terms(full_model), "term.labels"))
+n_coefs_full <- length(coef(full_model)) - 1
+n_vars_step  <- length(attr(terms(step_model), "term.labels"))
+n_coefs_step <- length(coef(step_model)) - 1
+
+dropped_vars <- setdiff(attr(terms(full_model), "term.labels"),
+                        attr(terms(step_model), "term.labels"))
+```
+
+## Abstract
+
+This study investigates which property characteristics most influence residential sale prices in the Saratoga, New York housing market. We hypothesised that living area and location quality would be the dominant price drivers. After cleaning, `r nrow(train)` observations were retained and a `r n_vars_step`-variable log-linear regression was developed via bidirectional stepwise AIC selection. The model explains `r round(glance_stats$adj.r.squared * 100, 1)`% of variation in log(Price) (adj. R² = `r round(glance_stats$adj.r.squared, 3)`) with an out-of-sample MAE of \$`r format(round(test_mae, 0), big.mark = ",")`. Living area, land value, and bathrooms were the strongest positive drivers; waterfront access carried the single largest premium — consistent with our hypothesis. The model is limited by mild heteroscedasticity and the absence of neighbourhood-level covariates.
+
+## Introduction
+
+What property characteristics most influence residential sale prices? We hypothesise that living area and land value are the dominant determinants, with bathrooms and waterfront providing secondary premiums. This report builds a log-linear regression from the Saratoga housing dataset, with relevance for buyers, sellers, and appraisers.
+
+## Data Set
+
+The dataset records `r nrow(train)` residential sales from Saratoga, New York (source: DASL Data Library). From the original 1,734 observations, seven duplicates, six implausible values (Price < Land.Value or zero Lot.Size/Bathrooms), and three non-standard transactions identified during diagnostics were removed. Predictors include nine continuous measures, three binary indicators, and three categorical factors; four sparse fuel type levels were collapsed into "Other" (summary statistics in Table A1). Scatter plots of living area and land value against log(Price) confirm linear relationships supporting the log-linear specification (Figure A1). The log transformation was motivated by right-skewed prices, improved residual behaviour, and a natural percentage-change interpretation.
+
+## Analysis
+
+**Variable selection.** Data were split 80/20 (train n = `r nrow(train_set)`, test n = `r nrow(test_set)`). A full model with all `r n_vars_full` predictors (`r n_coefs_full` coefficients after dummy encoding) was fit on log(Price); bidirectional stepwise AIC dropped `r paste(dropped_vars, collapse = ", ")`, retaining `r n_vars_step` variables (`r n_coefs_step` coefficients). Forward and backward selection converged on the same model.
+
+**Assumptions** (Figures A2–A3). Linearity: the residuals-vs-fitted plot shows no curvature, and residuals against Living.Area and Land.Value show no pattern. Independence: each row is a distinct transaction; spatial correlation is a potential limitation. Homoscedasticity: the Scale-Location plot shows mild non-constant variance — the log transformation reduced but did not eliminate this. Normality: the Q–Q plot is markedly improved over the untransformed model; moderate tail deviation remains but is unlikely to affect estimates given the sample size.
+
+## Results
+
+The model has adj. R² = `r round(glance_stats$adj.r.squared, 3)`, with out-of-sample RMSE of \$`r format(round(test_rmse, 0), big.mark = ",")` and MAE of \$`r format(round(test_mae, 0), big.mark = ",")` (~`r round(test_mae / median_price * 100, 1)`% of median price). All predictors are significant at α = 0.05 except Fuel.TypeOil (p = 0.107), retained as part of Fuel.Type. See Figure A4 and Table A2 for full estimates. Predictions track actual prices well, with wider spread at higher values (Figure A5). Key interpretations (holding other predictors constant; ×100 ≈ % change):
+
+- **Living.Area:** +100 sq ft ≈ `r round(coef(step_model)["Living.Area"] * 100 * 100, 1)`% increase (range: `r min(train$Living.Area)`–`r format(max(train$Living.Area), big.mark=",")` sq ft).
+- **Land.Value:** +\$10k ≈ `r round(coef(step_model)["Land.Value"] * 10000 * 100, 1)`% increase.
+- **Bathrooms:** +1 ≈ `r round(coef(step_model)["Bathrooms"] * 100, 1)`% increase.
+- **Waterfront:** ≈ `r round((exp(coef(step_model)["Waterfront1"]) - 1) * 100, 1)`% premium — largest effect (only `r sum(train$Waterfront == "1")` observations; wide uncertainty).
+- **New.Construct:** ≈ `r round(abs((exp(coef(step_model)["New.Construct1"]) - 1) * 100), 1)`% *lower*, possibly because new builds occupy lower-value land.
+- **Age:** ≈ `r round(abs(coef(step_model)["Age"] * 100), 2)`% decrease per year (structural depreciation).
+
+## Discussion & Conclusion
+
+The model confirms our hypothesis: living area and land value dominate pricing, with waterfront providing the largest premium. The negative New.Construct coefficient likely reflects confounding with land value. All coefficients are associations, not causal effects.
+
+**Limitations.** Mild heteroscedasticity widens uncertainty for extreme prices. Omitted variables (school district, neighbourhood, condition) explain part of the residual variance. Three removed observations introduce minor selection bias risk. Findings are Saratoga-specific and may not generalise. **Future work** could add spatial variables, apply robust standard errors, and replicate across markets.
+
+**Conclusion.** A `r n_vars_step`-variable log-linear regression (`r n_coefs_step` coefficients) provides an interpretable summary of Saratoga housing price drivers. Living area, land value, bathrooms, and waterfront access are the most influential determinants.
+
+{{< pagebreak >}}
+
+## Appendix
+
+```{r appendix-summary-table}
+train %>%
+  select(Price, Living.Area, Land.Value, Lot.Size, Age,
+         Bathrooms, Rooms, Bedrooms, Fireplaces, Pct.College) %>%
+  pivot_longer(everything()) %>%
+  group_by(name) %>%
+  summarise(Mean = mean(value), SD = sd(value),
+            Min = min(value), Max = max(value), .groups = "drop") %>%
+  knitr::kable(
+    digits  = 2,
+    caption = "Table A1: Summary statistics for continuous variables."
+  )
+```
+
+```{r appendix-eda-plots, fig.height=3, fig.cap="Figure A1: Living area and land value against log(Price)."}
+p1 <- ggplot(train, aes(x = Living.Area, y = log_Price)) +
+  geom_point(alpha = 0.25, size = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.7) +
+  labs(x = "Living Area (sq ft)", y = "log(Price)") +
+  theme_minimal(base_size = 9)
+
+p2 <- ggplot(train, aes(x = Land.Value, y = log_Price)) +
+  geom_point(alpha = 0.25, size = 0.8) +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.7) +
+  scale_x_continuous(labels = dollar) +
+  labs(x = "Land Value (USD)", y = "log(Price)") +
+  theme_minimal(base_size = 9)
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+```{r appendix-residual-diagnostics, fig.height=5.5, fig.width=6, fig.cap="Figure A2: Residual diagnostic plots for the final log-linear model."}
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+plot(step_model)
+```
+
+```{r appendix-residuals-vs-predictors, fig.height=3, fig.cap="Figure A3: Residuals against living area and land value."}
+resid_df <- data.frame(
+  resid       = residuals(step_model),
+  Living.Area = train_set$Living.Area,
+  Land.Value  = train_set$Land.Value
+)
+
+r1 <- ggplot(resid_df, aes(x = Living.Area, y = resid)) +
+  geom_point(alpha = 0.25, size = 0.7) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Living Area (sq ft)", y = "Residual") +
+  theme_minimal(base_size = 9)
+
+r2 <- ggplot(resid_df, aes(x = Land.Value, y = resid)) +
+  geom_point(alpha = 0.25, size = 0.7) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_x_continuous(labels = dollar) +
+  labs(x = "Land Value (USD)", y = "Residual") +
+  theme_minimal(base_size = 9)
+
+grid.arrange(r1, r2, ncol = 2)
+```
+
+```{r appendix-coef-plot, fig.height=4.5, fig.width=6, fig.cap="Figure A4: Coefficient plot with 95% CIs. Multiply by 100 for approximate % change in Price."}
+tidy(step_model, conf.int = TRUE) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(term = fct_reorder(term, estimate)) %>%
+  ggplot(aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.3) +
+  geom_point(size = 2) +
+  labs(x = "Coefficient (change in log Price)", y = NULL) +
+  theme_minimal(base_size = 9)
+```
+
+```{r appendix-coef-table}
+knitr::kable(
+  tidy(step_model, conf.int = TRUE) %>%
+    select(term, estimate, std.error, p.value, conf.low, conf.high),
+  digits  = 5,
+  col.names = c("Term", "Estimate", "SE", "p-value", "CI Low", "CI High"),
+  caption = "Table A2: Coefficient table for the final log-linear model.
+             Multiply by 100 for approximate % change in Price."
+)
+```
+
+```{r appendix-actual-vs-predicted, fig.height=3.5, fig.width=5, fig.cap="Figure A5: Actual vs predicted prices on the test set (back-transformed to USD)."}
+pred_df <- data.frame(
+  actual    = test_set$Price,
+  predicted = test_preds
+)
+
+ggplot(pred_df, aes(x = predicted, y = actual)) +
+  geom_point(alpha = 0.3, size = 0.9) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "red") +
+  scale_x_continuous(labels = dollar) +
+  scale_y_continuous(labels = dollar) +
+  labs(x = "Predicted Price (USD)", y = "Actual Price (USD)") +
+  theme_minimal(base_size = 9)
+```
+
+```{r appendix-fit-table}
+knitr::kable(
+  glance(step_model) %>%
+    select(r.squared, adj.r.squared, sigma, AIC, BIC, nobs),
+  digits  = 3,
+  caption = "Table A3: Model-level fit statistics."
+)
+```
+
+```{r appendix-model-comparison}
+knitr::kable(
+  tibble::tibble(
+    Model  = c(paste0("Full model (", n_vars_full, " variables, ", n_coefs_full, " coefficients)"),
+               paste0("Stepwise model (", n_vars_step, " variables, ", n_coefs_step, " coefficients)")),
+    AIC    = c(AIC(full_model), AIC(step_model)),
+    Adj_R2 = c(round(summary(full_model)$adj.r.squared, 3),
+               round(summary(step_model)$adj.r.squared, 3))
+  ),
+  digits  = 3,
+  caption = "Table A4: Full vs stepwise model comparison."
+)
+```

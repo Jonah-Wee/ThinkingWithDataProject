@@ -187,7 +187,42 @@ kable(heat_counts,  caption = "Heat.Type level counts")
 kable(sewer_counts, caption = "Sewer.Type level counts")
 ```
 
-## 6. Final integrity checks
+## 6. Remove implausible price outliers
+
+Three observations were identified as likely non-standard transactions based on
+their sale price relative to their structural characteristics. These were flagged
+during assumption checking of the regression model and are removed here for
+completeness of the cleaning record.
+
+- **Observation 1184**: Sale price of \$655,000 for a 780 sq ft non-waterfront
+  home with no distinguishing features — over three times the dataset median with
+  no plausible structural or locational justification.
+- **Observation 108**: Sale price of \$25,000 for a 920 sq ft home with an
+  assessed land value of only \$900 — inconsistent with an arm's-length
+  residential market transaction.
+- **Observation 458**: Sale price of \$20,000 for a 936 sq ft home — similarly
+  implausible for a habitable residential property.
+
+These prices cannot be reconciled with standard market conditions and are most
+plausibly the result of data errors or atypical sales such as foreclosures or
+intra-family transfers. As no supporting contextual information is available to
+distinguish these cases, all three were removed.
+
+```{r remove-price-outliers}
+outlier_ids <- c(1184, 108, 458)
+
+kable(
+  houses[outlier_ids, ],
+  caption = "Three implausible price outliers identified for removal"
+)
+
+houses <- houses[-outlier_ids, ]
+```
+
+**3 observations** were removed. The dataset now contains
+**`r nrow(houses)` observations**.
+
+## 7. Final integrity checks
 
 ### Large lot sizes
 
@@ -217,7 +252,7 @@ kable(
 )
 ```
 
-## 7. Final validation
+## 8. Final validation
 
 ```{r final-validation}
 kable(
@@ -233,4 +268,4 @@ glimpse(houses)
 write.csv(houses, "cleaned_housing_data.csv", row.names = FALSE)
 ```
 
-The cleaned dataset contains **`r nrow(houses)` observations** and **`r ncol(houses)` variables**, with **`r sum(is.na(houses))` missing values**. It has been saved to `cleaned_housing_data.csv` and is ready for exploratory data analysis and modelling.
+The cleaned dataset contains **`r nrow(houses)` observations** and **`r ncol(houses)` variables**, with **`r sum(is.na(houses))` missing values**. It has been saved to `cleaned_housing_data.csv` and is ready for exploratory data analysis and modelling. Note that the final observation count of `r nrow(houses)` reflects all cleaning steps including the removal of three implausible price outliers identified in Section 6.
